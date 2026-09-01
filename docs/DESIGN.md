@@ -50,3 +50,23 @@ Filled in as they are hit. Two are already known and are handled in `curate.py`:
 - MoleculeACE — activity cliff benchmark, 30 ChEMBL targets
 - An open source chemical structure curation pipeline using RDKit (*J Cheminform* 2020)
 - Polaris — curated benchmarks for drug discovery ML
+
+## Layout
+
+```
+src/chembench/
+  curate.py     ChEMBL fetch, validity checking, standardisation, parent extraction, cliffs
+  splits.py     random / scaffold / activity-cliff splitting + the leakage report
+  models.py     ECFP+SVM, chemprop, ChemBERTa — one interface, lazy backends
+  evaluate.py   RMSE, Spearman, bootstrap intervals, overlap test
+  experiment.py the 45-cell grid
+  report.py     the tables
+  cli.py        `python -m chembench.cli`
+```
+
+27 tests, none needing a chemistry toolkit.
+
+Curation keeps 20,255 of 24,565 fetched measurements: records without a pChEMBL
+value, censored relations and ChEMBL's own validity-flagged rows are refused, and
+4,266 duplicate measurements of the same parent structure are collapsed to their
+median. Every refusal is counted by reason and written out beside the data.
