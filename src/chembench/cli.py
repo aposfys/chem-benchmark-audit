@@ -59,6 +59,17 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
+    try:
+        return _dispatch(args)
+    except RuntimeError as exc:
+        # Expected failures -- ChEMBL unreachable, nothing curated yet -- are reported with
+        # the command that fixes them rather than as a traceback.
+        raise SystemExit(str(exc)) from exc
+    except OSError as exc:
+        raise SystemExit(f"could not reach ChEMBL: {exc}") from exc
+
+
+def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "curate":
         from chembench.curate import (
             DEFAULT_TARGETS,
@@ -91,10 +102,22 @@ def main(argv: list[str] | None = None) -> int:
         from chembench.experiment import run
         from chembench.report import write
 
+        curated = args.data_dir / "curated"
+        if not args.report_only and not sorted(curated.glob("CHEMBL*.json")):
+            raise SystemExit(
+                f"no curated targets in {curated}.\n"
+                "Fetch and curate them first:  chembench curate\n"
+                "Or re-render an existing run:  chembench evaluate --report-only"
+            )
         if args.report_only:
             # Re-render from an existing findings.json. The flag existed and was ignored,
             # so asking for a report silently re-ran a three-hour grid.
-            out = write(args.results_dir / "findings.json", args.results_dir / "RESULTS.md")
+            findings_path = args.results_dir / "findings.json"
+            if not findings_path.exists():
+                raise SystemExit(
+                    f"no findings at {findings_path}. Run 'chembench evaluate' first."
+                )
+            out = write(findings_path, args.results_dir / "RESULTS.md")
             print(f"wrote {out}")
             return 0
 
