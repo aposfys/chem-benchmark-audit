@@ -63,3 +63,13 @@ warn_redundant_casts = true
 no_implicit_optional = true
 check_untyped_defs = true
 exclude = ["^tests/"]
+
+
+# RDKit ships partial type information: the modules resolve but their C-extension members
+# do not, so every descriptor call reads as a missing attribute. Skipping the follow keeps
+# mypy useful on this package's own code instead of drowning it in third-party noise.
+[[tool.mypy.overrides]]
+module = ["rdkit.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+follow_imports_for_stubs = true

@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import random
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 
 Split = tuple[list[str], list[str]]
 
@@ -68,17 +68,57 @@ def scaffold_split(
 
 
 def activity_cliff_split(
-    scaffolds: Mapping[str, str],
-    activities: Mapping[str, float],
+    keys: Sequence[str],
+    cliff_members: Collection[str],
     test_frac: float = 0.2,
     seed: int = 0,
 ) -> Split:
     """Enrich the test set for activity cliffs.
 
-    Requires a similarity matrix, so it belongs downstream of fingerprinting rather than
-    here. Implemented in the modelling milestone; see README milestone 3.
+    ``cliff_members`` is computed upstream, where a fingerprint backend exists -- see
+    :func:`chembench.curate.find_activity_cliffs`. Keeping this function free of RDKit is
+    what lets the splitting logic be tested without a chemistry toolkit.
+
+    The test set is filled with cliff compounds first, then topped up at random. The
+    deliberate consequence is that a cliff pair usually straddles the split: one member is
+    seen in training and its near-identical, very differently potent partner is not. That
+    is the case a fingerprint-similarity model gets wrong by construction, and it is the
+    regime where descriptor baselines have repeatedly matched deep models.
+
+    A test set of *only* cliff compounds would be a different and less useful experiment --
+    it would measure performance on a subpopulation rather than the cost of cliffs to an
+    ordinary evaluation -- so the remainder is filled randomly rather than the fraction
+    being raised.
     """
-    raise NotImplementedError("activity-cliff splitting lands with the fingerprint backend")
+    _check_frac(test_frac)
+    rng = random.Random(seed)
+    ordered = list(keys)
+    rng.shuffle(ordered)
+
+    n_test = round(len(ordered) * test_frac)
+    cliffs = [key for key in ordered if key in cliff_members]
+    others = [key for key in ordered if key not in cliff_members]
+
+    test = cliffs[:n_test]
+    if len(test) < n_test:
+        test.extend(others[: n_test - len(test)])
+    test_set = set(test)
+    train = [key for key in ordered if key not in test_set]
+    return train, test
+
+
+def cliff_enrichment(
+    test: Sequence[str], cliff_members: Collection[str], baseline: float
+) -> float:
+    """How much more cliff-dense the test set is than the dataset as a whole.
+
+    1.0 means the split did nothing. Reported so that "activity-cliff split" is a
+    measured claim rather than a label.
+    """
+    if not test or baseline <= 0:
+        return 0.0
+    observed = sum(1 for key in test if key in cliff_members) / len(test)
+    return observed / baseline
 
 
 def scaffold_leakage(

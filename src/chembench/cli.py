@@ -42,13 +42,76 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate.add_argument("--targets", type=int, default=0, help="limit to N targets; 0 = all")
     evaluate.add_argument("--seed", type=int, default=0)
+    evaluate.add_argument(
+        "--generic-scaffolds",
+        action="store_true",
+        help="erase atom types when computing Murcko scaffolds (a harder split)",
+    )
+    evaluate.add_argument(
+        "--report-only",
+        action="store_true",
+        help="re-render RESULTS.md from an existing findings.json",
+    )
 
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    raise SystemExit(f"'{args.command}' is not implemented yet; see README milestones")
+
+    if args.command == "curate":
+        from chembench.curate import (
+            DEFAULT_TARGETS,
+            curate_target,
+            fetch_target,
+            write_curated,
+        )
+
+        panel = (
+            [(tid, tid, "Ki") for tid in args.targets]
+            if args.targets
+            else list(DEFAULT_TARGETS)
+        )
+        for target_id, name, activity_type in panel:
+            raw = fetch_target(
+                target_id,
+                args.data_dir / "raw" / f"{target_id}.json",
+                activity_type=activity_type,
+            )
+            records, report = curate_target(target_id, raw, activity_type=activity_type)
+            write_curated(records, report, args.data_dir / "curated")
+            print(
+                f"{target_id} {name}: fetched {report.fetched} -> kept {report.kept} "
+                f"(collapsed {report.duplicates_collapsed}, "
+                f"rejected {sum(report.rejected.values())})"
+            )
+        return 0
+
+    if args.command == "evaluate":
+        from chembench.experiment import run
+        from chembench.report import write
+
+        if args.report_only:
+            # Re-render from an existing findings.json. The flag existed and was ignored,
+            # so asking for a report silently re-ran a three-hour grid.
+            out = write(args.results_dir / "findings.json", args.results_dir / "RESULTS.md")
+            print(f"wrote {out}")
+            return 0
+
+        findings = run(
+            args.data_dir / "curated",
+            args.results_dir,
+            models=args.models,
+            splits=args.splits,
+            generic_scaffolds=getattr(args, "generic_scaffolds", False),
+            seed=args.seed,
+            max_targets=args.targets,
+        )
+        out = write(args.results_dir / "findings.json", args.results_dir / "RESULTS.md")
+        print(f"wrote {out} ({len(findings['cells'])} cells)")
+        return 0
+
+    raise SystemExit(f"unknown command {args.command!r}")
 
 
 if __name__ == "__main__":

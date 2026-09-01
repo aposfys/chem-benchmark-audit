@@ -74,3 +74,42 @@ def test_duplicate_groups_finds_repeated_structures() -> None:
 def test_rejects_impossible_fractions(bad: float) -> None:
     with pytest.raises(ValueError):
         splits.random_split(list(SCAFFOLDS), test_frac=bad)
+
+
+def test_activity_cliff_split_enriches_the_test_set() -> None:
+    keys = [f"c{i}" for i in range(100)]
+    cliffs = {f"c{i}" for i in range(10)}
+    train, test = splits.activity_cliff_split(keys, cliffs, test_frac=0.2, seed=0)
+
+    # Every cliff compound should be in test: there are 10 of them and 20 test slots.
+    assert cliffs <= set(test)
+    assert len(test) == 20
+    assert set(train) | set(test) == set(keys)
+    assert not set(train) & set(test)
+
+
+def test_cliff_enrichment_reports_one_when_the_split_did_nothing() -> None:
+    keys = [f"c{i}" for i in range(100)]
+    cliffs = {f"c{i}" for i in range(20)}
+    baseline = len(cliffs) / len(keys)
+    # A test set with exactly the background rate is 1.0x enriched, by definition.
+    assert splits.cliff_enrichment(keys[:10] + keys[20:30], cliffs, baseline) == 2.5
+    assert splits.cliff_enrichment(keys[20:40], cliffs, baseline) == 0.0
+
+
+def test_activity_cliff_split_tops_up_randomly_when_cliffs_are_scarce() -> None:
+    # Fewer cliffs than test slots: the remainder must be filled, not left short, or the
+    # test fraction silently changes between targets and the numbers stop comparing.
+    keys = [f"c{i}" for i in range(100)]
+    cliffs = {"c0", "c1"}
+    _, test = splits.activity_cliff_split(keys, cliffs, test_frac=0.2, seed=0)
+    assert len(test) == 20
+    assert cliffs <= set(test)
+
+
+def test_activity_cliff_split_is_deterministic() -> None:
+    keys = [f"c{i}" for i in range(50)]
+    cliffs = {"c3", "c7"}
+    first = splits.activity_cliff_split(keys, cliffs, seed=3)
+    second = splits.activity_cliff_split(keys, cliffs, seed=3)
+    assert first == second
