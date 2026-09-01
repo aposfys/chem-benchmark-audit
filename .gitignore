@@ -14,3 +14,6 @@ data/*.parquet
 data/*.sdf
 results/models/
 results/*.pkl
+data/raw/
+data/curated/
+results/_smoke/

@@ -43,7 +43,16 @@ def bootstrap_ci(
     alpha: float = 0.05,
     seed: int = 0,
 ) -> tuple[float, float]:
-    """Percentile bootstrap interval for ``rmse`` or ``spearman``."""
+    """Percentile bootstrap interval for ``rmse`` or ``spearman``.
+
+    Resampling is over test compounds, which is the source of variation that matters: two
+    models whose intervals overlap have not been shown to differ. Every comparison in this
+    repo is read through these intervals rather than through the point estimates.
+
+    Degenerate resamples -- ones where every drawn label is identical, which makes Spearman
+    undefined -- are discarded rather than scored as zero correlation, which would drag the
+    lower bound down for a reason that has nothing to do with the model.
+    """
     _check_pair(y_true, y_pred)
     func = {"rmse": rmse, "spearman": spearman}[statistic]
     rng = random.Random(seed)
@@ -51,11 +60,26 @@ def bootstrap_ci(
     values = []
     for _ in range(n_resamples):
         idx = [rng.randrange(n) for _ in range(n)]
-        values.append(func([y_true[i] for i in idx], [y_pred[i] for i in idx]))
+        resampled_true = [y_true[i] for i in idx]
+        if len(set(resampled_true)) < 2:
+            continue
+        values.append(func(resampled_true, [y_pred[i] for i in idx]))
+    if not values:
+        point = func(y_true, y_pred)
+        return point, point
     values.sort()
-    lo = values[int((alpha / 2) * n_resamples)]
-    hi = values[min(int((1 - alpha / 2) * n_resamples), n_resamples - 1)]
+    lo = values[int((alpha / 2) * len(values))]
+    hi = values[min(int((1 - alpha / 2) * len(values)), len(values) - 1)]
     return lo, hi
+
+
+def intervals_overlap(a: tuple[float, float], b: tuple[float, float]) -> bool:
+    """Whether two confidence intervals overlap.
+
+    The repo's central claim is that small differences on a leaky split are noise, so a
+    difference is only ever reported as a difference when this returns ``False``.
+    """
+    return not (a[1] < b[0] or b[1] < a[0])
 
 
 def _ranks(values: Sequence[float]) -> list[float]:
