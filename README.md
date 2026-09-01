@@ -62,9 +62,10 @@ src/chembench/
   cli.py        `python -m chembench.cli`
 ```
 
-24 tests, none needing a chemistry toolkit.
+27 tests, none needing a chemistry toolkit.
 
 ### More
 
+- [Analysis: what was done, and why it was done that way](ANALYSIS.md)
 - [Full results, per target and per cell](results/RESULTS.md)
 - [Why this framing, and the traps the pipeline is built to avoid](docs/DESIGN.md)
