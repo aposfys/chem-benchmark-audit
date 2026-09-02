@@ -55,6 +55,29 @@ was established here", not "the deep model cannot win". ChemBERTa is used frozen
 and mean-pooled with a ridge head, so its 0.941 is a statement about frozen
 embeddings, not about the checkpoint.
 
+### Prior work, and where the field has already moved
+
+**The two findings above are consistent with published work rather than novel, and the
+scaffold-split question this repository asks has largely been settled against it.**
+
+- Fooladi et al., *JCIM* 2025 — 14 models across 8 datasets and 10 splitting strategies.
+  They report that classical ML and graph neural networks are "not substantially different
+  from random splitting" under Bemis–Murcko scaffold splits, which is the same conclusion
+  reached here from a smaller design.
+- Guo et al. 2024 — *Scaffold Splits Overestimate Virtual Screening Performance*. Molecules
+  with different scaffolds are frequently similar, so a scaffold split still leaves
+  unrealistically high train–test similarity.
+
+Both papers point past the scaffold split to **chemical-similarity clustering, in particular
+UMAP over ECFP4**, as the split that actually separates models and that best reflects a
+screening library. That split is **not implemented here**, and it is the obvious next
+measurement: this repository's 0.0% scaffold leakage figure is a statement about Murcko
+scaffolds, not about chemical similarity, and the two are not the same thing.
+
+Read this as a controlled, fully reproducible demonstration of a known result on five ChEMBL
+targets, with the leakage assertion under test rather than assumed — not as evidence that
+had not been available before.
+
 ### More
 
 - [Analysis](ANALYSIS.md) — what was done and why, including curation refusals
