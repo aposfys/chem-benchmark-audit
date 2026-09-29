@@ -1,0 +1,55 @@
+{
+ "chembl_db_version": "ChEMBL_37",
+ "chembl_release_date": "2026-05-01",
+ "totals": {
+  "fetched": 24565,
+  "kept": 20255,
+  "duplicates_collapsed": 4266,
+  "rejected": {
+   "missing structure or pChEMBL": 44
+  }
+ },
+ "targets": [
+  {
+   "target_id": "CHEMBL204",
+   "fetched": 4003,
+   "kept": 3446,
+   "duplicates_collapsed": 557,
+   "rejected": {}
+  },
+  {
+   "target_id": "CHEMBL214",
+   "fetched": 6256,
+   "kept": 4971,
+   "duplicates_collapsed": 1278,
+   "rejected": {
+    "missing structure or pChEMBL": 7
+   }
+  },
+  {
+   "target_id": "CHEMBL228",
+   "fetched": 3394,
+   "kept": 2732,
+   "duplicates_collapsed": 658,
+   "rejected": {
+    "missing structure or pChEMBL": 4
+   }
+  },
+  {
+   "target_id": "CHEMBL233",
+   "fetched": 6787,
+   "kept": 5540,
+   "duplicates_collapsed": 1214,
+   "rejected": {
+    "missing structure or pChEMBL": 33
+   }
+  },
+  {
+   "target_id": "CHEMBL244",
+   "fetched": 4125,
+   "kept": 3566,
+   "duplicates_collapsed": 559,
+   "rejected": {}
+  }
+ ]
+}
