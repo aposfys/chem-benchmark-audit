@@ -1,8 +1,8 @@
 """Turn ``findings.json`` into the table the repository exists to produce.
 
 Every comparison is read through the bootstrap intervals. Where two intervals overlap, the
-difference is reported as not established -- that is the repo's whole argument applied to
-its own results, and it applies just as much when the answer is inconvenient.
+difference is reported as not established. That is the repo's own argument applied to its
+own results, and it applies just as much when the answer is inconvenient.
 """
 
 from __future__ import annotations
@@ -31,6 +31,39 @@ def _by(cells: list[dict], *keys: str) -> dict[tuple, list[dict]]:
     for cell in cells:
         grouped[tuple(cell[key] for key in keys)].append(cell)
     return grouped
+
+
+def cell_overlaps(
+    cells: list[dict], model_a: str, model_b: str
+) -> tuple[int, int, list[dict]]:
+    """Count target x split cells where two models' RMSE intervals overlap.
+
+    Returns ``(overlapping, total, separated)``, where ``separated`` lists the cells whose
+    intervals do not overlap. This is an unpaired comparison of two percentile intervals,
+    which is conservative for two models scored on the same test compounds.
+    """
+    by_cell = _by(cells, "target_id", "split")
+    overlapping = 0
+    total = 0
+    separated: list[dict] = []
+    for (target_id, split), rows in by_cell.items():
+        found = {row["model"]: row for row in rows}
+        if model_a not in found or model_b not in found:
+            continue
+        a, b = found[model_a], found[model_b]
+        total += 1
+        if intervals_overlap((a["rmse_low"], a["rmse_high"]), (b["rmse_low"], b["rmse_high"])):
+            overlapping += 1
+        else:
+            separated.append(
+                {
+                    "target_id": target_id,
+                    "split": split,
+                    model_a: a["rmse"],
+                    model_b: b["rmse"],
+                }
+            )
+    return overlapping, total, separated
 
 
 def render(findings: dict) -> str:
@@ -66,6 +99,25 @@ def render(findings: dict) -> str:
             f"| {mean(r['cliff_enrichment'] for r in rows):.2f}x |"
         )
     lines.append("")
+    targets = findings["targets"]
+    if "activity_cliff" in splits and targets:
+        ceiling = 1 / config["test_frac"]
+        low = min(t["cliff_fraction"] for t in targets)
+        high = max(t["cliff_fraction"] for t in targets)
+        text = (
+            f"Cliff enrichment cannot exceed 1/test_frac ({ceiling:.2f}x here). It reaches "
+            "that ceiling whenever the cliff compounds fit inside the test set"
+        )
+        if high <= config["test_frac"]:
+            text += (
+                f", which they do for every target ({low:.1%} to {high:.1%} of compounds "
+                f"are cliff members against a test fraction of {config['test_frac']:.0%}). "
+                "Every cliff compound is then in test and no cliff pair is split across "
+                "train and test."
+            )
+        else:
+            text += "."
+        lines.append(text + "\n")
     random_leak = mean(r["scaffold_leakage"] for r in by_split[("random",)])
     lines.append(
         f"**{random_leak:.0%} of a random split's test compounds share a scaffold with "
@@ -135,6 +187,30 @@ def render(findings: dict) -> str:
                     f"({runner_stats[0]:.3f}), so the difference **is** established."
                 )
         lines.append(text + "\n")
+
+    lines.append(
+        "Per cell, read through unpaired overlap of the two 95% bootstrap intervals "
+        "(resampled over test compounds, one split seed):\n"
+    )
+    for i, model_a in enumerate(models):
+        for model_b in models[i + 1 :]:
+            overlapping, total, separated = cell_overlaps(cells, model_a, model_b)
+            if not total:
+                continue
+            text = (
+                f"- {MODEL_LABELS.get(model_a, model_a)} against "
+                f"{MODEL_LABELS.get(model_b, model_b)}: intervals overlap in "
+                f"{overlapping} of {total} cells."
+            )
+            if separated and len(separated) <= 3:
+                text += " Separated: " + "; ".join(
+                    f"{cell['target_id']} {SPLIT_LABELS.get(cell['split'], cell['split'])} "
+                    f"({cell[model_a]:.3f} against {cell[model_b]:.3f})"
+                    for cell in separated
+                )
+                text += "."
+            lines.append(text)
+    lines.append("")
 
     # ---- per target -------------------------------------------------------------------
     lines.append("## Per target\n")

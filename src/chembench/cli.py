@@ -25,12 +25,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    curate = sub.add_parser("curate", help="fetch and curate ChEMBL targets")
+    curate = sub.add_parser(
+        "curate",
+        help="fetch and curate ChEMBL targets",
+        description="Fetch and curate ChEMBL Ki data. Curating the default panel also "
+        "writes RESULTS_DIR/curation_report.json with the counts and the ChEMBL release.",
+    )
     curate.add_argument("--targets", nargs="*", help="ChEMBL target ids; default is the panel")
     curate.add_argument(
-        "--generic-scaffolds",
-        action="store_true",
-        help="erase atom types when computing Murcko scaffolds (a harder split)",
+        "--activity-type",
+        default="Ki",
+        help="ChEMBL standard_type to fetch for --targets (default Ki)",
     )
 
     evaluate = sub.add_parser("evaluate", help="score every model under every split regime")
@@ -65,24 +70,40 @@ def main(argv: list[str] | None = None) -> int:
         # Expected failures -- ChEMBL unreachable, nothing curated yet -- are reported with
         # the command that fixes them rather than as a traceback.
         raise SystemExit(str(exc)) from exc
+    except ImportError as exc:
+        # A missing optional backend (RDKit for curation, the model libraries for the grid)
+        # is an install problem, so name the install command instead of a traceback.
+        raise SystemExit(
+            f"missing optional dependency: {exc.name or exc}.\n"
+            'Install the full toolchain with:  pip install -e ".[chem,models]"'
+        ) from exc
     except OSError as exc:
         raise SystemExit(f"could not reach ChEMBL: {exc}") from exc
 
 
 def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "curate":
+        import json
+
+        # Curation needs RDKit. Fail here, before a nine-minute download, not after it.
+        import rdkit  # noqa: F401
+
         from chembench.curate import (
             DEFAULT_TARGETS,
+            chembl_release,
             curate_target,
+            curation_summary,
             fetch_target,
             write_curated,
         )
 
         panel = (
-            [(tid, tid, "Ki") for tid in args.targets]
+            [(tid, tid, args.activity_type) for tid in args.targets]
             if args.targets
             else list(DEFAULT_TARGETS)
         )
+        release = chembl_release()
+        reports = []
         for target_id, name, activity_type in panel:
             raw = fetch_target(
                 target_id,
@@ -91,11 +112,22 @@ def _dispatch(args: argparse.Namespace) -> int:
             )
             records, report = curate_target(target_id, raw, activity_type=activity_type)
             write_curated(records, report, args.data_dir / "curated")
+            reports.append(report)
             print(
                 f"{target_id} {name}: fetched {report.fetched} -> kept {report.kept} "
                 f"(collapsed {report.duplicates_collapsed}, "
                 f"rejected {sum(report.rejected.values())})"
             )
+        if args.targets:
+            # The committed summary describes the whole panel. A partial run must not
+            # overwrite it with a subset.
+            return 0
+        summary_path = args.results_dir / "curation_report.json"
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(curation_summary(reports, release), indent=1) + "\n"
+        )
+        print(f"wrote {summary_path} ({release['chembl_db_version']})")
         return 0
 
     if args.command == "evaluate":

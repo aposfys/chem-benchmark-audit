@@ -12,6 +12,8 @@ Measured per target and averaged. Scaffold leakage is the fraction of test compo
 | Scaffold | 0.0% | 0.99x |
 | Activity cliff | 64.0% | 5.00x |
 
+Cliff enrichment cannot exceed 1/test_frac (5.00x here). It reaches that ceiling whenever the cliff compounds fit inside the test set, which they do for every target (3.8% to 7.8% of compounds are cliff members against a test fraction of 20%). Every cliff compound is then in test and no cliff pair is split across train and test.
+
 **67% of a random split's test compounds share a scaffold with something the model trained on.** That is the leak the rest of this table prices.
 
 ## RMSE by model and split
@@ -34,6 +36,12 @@ pChEMBL units, averaged over targets, with the mean of the per-target 95% bootst
 
 **Activity cliff.**
  Lowest RMSE: ECFP4 + SVM at 0.762. Its interval overlaps chemprop (D-MPNN) (0.805), so the difference is **not established**.
+
+Per cell, read through unpaired overlap of the two 95% bootstrap intervals (resampled over test compounds, one split seed):
+
+- ECFP4 + SVM against chemprop (D-MPNN): intervals overlap in 14 of 15 cells. Separated: CHEMBL204 Scaffold (0.750 against 0.872).
+- ECFP4 + SVM against ChemBERTa + ridge: intervals overlap in 0 of 15 cells.
+- chemprop (D-MPNN) against ChemBERTa + ridge: intervals overlap in 0 of 15 cells.
 
 ## Per target
 

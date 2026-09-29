@@ -30,8 +30,8 @@ from statistics import median
 
 CHEMBL_API = "https://www.ebi.ac.uk/chembl/api/data"
 
-#: ChEMBL stores tautomers as deposited; PubChem canonicalises them. Merging the two
-#: without a single convention lets a model learn which database a record came from.
+#: ChEMBL stores tautomers as deposited, so one convention is applied here and recorded with
+#: the curated records. Only ChEMBL is fetched, so there is no cross-source merge to check.
 TAUTOMER_CONVENTION = "rdkit-v1"
 
 #: The panel. Chosen for assay depth and for being standard in the activity-cliff
@@ -109,6 +109,38 @@ def _get(url: str, attempts: int = 5) -> dict:
             last = exc
             time.sleep(2**attempt)
     raise RuntimeError(f"ChEMBL request failed after {attempts} attempts: {url}") from last
+
+
+def chembl_release() -> dict[str, str]:
+    """The ChEMBL release the API is serving, so a curated set can say what it came from.
+
+    Counts drift silently between releases. Recording the release next to the counts is
+    what lets a later rerun tell a code change from a data change.
+    """
+    status = _get(f"{CHEMBL_API}/status.json")
+    return {
+        "chembl_db_version": str(status.get("chembl_db_version", "unknown")),
+        "chembl_release_date": str(status.get("chembl_release_date", "unknown")),
+    }
+
+
+def curation_summary(reports: Iterable[CurationReport], release: dict[str, str]) -> dict:
+    """Per-target curation counts plus totals, in the form committed to ``results/``."""
+    targets = [report.as_dict() for report in reports]
+    rejected: dict[str, int] = defaultdict(int)
+    for target in targets:
+        for reason, count in target["rejected"].items():
+            rejected[reason] += count
+    return {
+        **release,
+        "totals": {
+            "fetched": sum(t["fetched"] for t in targets),
+            "kept": sum(t["kept"] for t in targets),
+            "duplicates_collapsed": sum(t["duplicates_collapsed"] for t in targets),
+            "rejected": dict(sorted(rejected.items())),
+        },
+        "targets": targets,
+    }
 
 
 def fetch_target(
