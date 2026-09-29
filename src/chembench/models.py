@@ -9,11 +9,13 @@ so models never touch curation or splitting -- they receive SMILES and return pr
     Directed message-passing neural network over the molecular graph.
 ``foundation``
     ChemBERTa-77M, a transformer pretrained on 77M PubChem molecules, frozen, with a
-    ridge head on its mean-pooled embeddings.
+    ridge head on its mean-pooled embeddings. The head's alpha is chosen by RidgeCV over
+    four values, so the head is lightly tuned. The transformer itself is not.
 
-**The baseline is tuned and the deep models are not.** That asymmetry is deliberate and it
-runs *against* the repo's own thesis: a small grid search over ``C`` and ``gamma`` is what
-an SVM needs to be competitive, while chemprop and the foundation head run at defaults. If
+**The baseline is tuned and the deep models are barely tuned.** That asymmetry is deliberate
+and it runs *against* the repo's own thesis: a small grid search over ``C`` and ``gamma`` is
+what an SVM needs to be competitive, while chemprop trains a fixed 40 epochs with no search
+and the foundation head is a RidgeCV over four alphas on frozen embeddings. If
 the classical baseline still wins under an honest split, it wins having been given the
 advantage that is cheapest to give. If it loses, the loss is real. Either way the direction
 of the bias is stated rather than left for a reader to guess.
@@ -114,7 +116,12 @@ class EcfpSvm:
 
 
 class Chemprop:
-    """Directed message-passing neural network (chemprop v2), on CPU."""
+    """Directed message-passing neural network (chemprop v2), on CPU.
+
+    Untuned: no architecture, depth or learning-rate search, and a fixed epoch budget
+    rather than chemprop's own default of 50. That is the asymmetry this module's docstring
+    describes, and it favours the baseline.
+    """
 
     name = "chemprop"
 

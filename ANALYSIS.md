@@ -40,7 +40,7 @@ four alphas on frozen embeddings.
 The direction of that bias matters for how the result reads. It favours the SVM, and the
 SVM still does not clearly win. That makes "no difference was established" robust to the
 bias, and it is why the conclusion is phrased that way rather than as "the baseline wins".
-It does **not** rule out that a tuned D-MPNN would win; that experiment was not run.
+It does **not** rule out that a tuned D-MPNN would win. That experiment was not run.
 
 **Every comparison is read through intervals, including the inconvenient ones.**
 `report.py` calls `intervals_overlap` and prints "not established" when they overlap, and it
@@ -110,7 +110,7 @@ assertion under test rather than assumed.
   percentile intervals on the same test compounds, at one split seed, and per-compound
   predictions are not committed, so it cannot be re-tested without rerunning the grid.
 - Anything about targets outside this panel of five.
-- Anything about classification; every metric here is regression on pChEMBL.
+- Anything about classification. Every metric here is regression on pChEMBL.
 
 ## What would change the conclusion
 
