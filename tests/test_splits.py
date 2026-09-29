@@ -113,3 +113,23 @@ def test_activity_cliff_split_is_deterministic() -> None:
     first = splits.activity_cliff_split(keys, cliffs, seed=3)
     second = splits.activity_cliff_split(keys, cliffs, seed=3)
     assert first == second
+
+
+def test_scaffold_split_puts_the_largest_groups_in_test() -> None:
+    # The test set is filled largest-first, so singletons land in training. The docstring
+    # says so, and this pins it.
+    scaffolds = {**SCAFFOLDS, "c13": "C1CC1", "c14": "C1CCC1"}
+    train, test = splits.scaffold_split(scaffolds, test_frac=0.25, seed=0)
+    assert set(test) == {"c01", "c02", "c03", "c04"}
+    assert {"c13", "c14"} <= set(train)
+
+
+def test_scarce_cliffs_all_go_to_test_and_hit_the_enrichment_ceiling() -> None:
+    # With fewer cliff compounds than test slots, no cliff compound is left in training,
+    # so no pair straddles the split and enrichment is exactly 1 / test_frac.
+    keys = [f"c{i}" for i in range(100)]
+    cliffs = {f"c{i}" for i in range(10)}
+    train, test = splits.activity_cliff_split(keys, cliffs, test_frac=0.2, seed=0)
+    assert not cliffs & set(train)
+    enrichment = splits.cliff_enrichment(test, cliffs, len(cliffs) / len(keys))
+    assert enrichment == pytest.approx(1 / 0.2)

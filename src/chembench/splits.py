@@ -12,9 +12,9 @@ Three regimes are supported, in increasing order of honesty:
     alongside every result.
 
 ``activity_cliff``
-    Test set enriched for pairs that are structurally similar but differ sharply in
-    potency, in the spirit of MoleculeACE. This is where descriptor baselines have
-    repeatedly matched or beaten deep models.
+    Test set enriched for compounds in pairs that are structurally similar but differ
+    sharply in potency, in the spirit of MoleculeACE. This is where descriptor baselines
+    have repeatedly matched or beaten deep models.
 
 Nothing here imports RDKit. Scaffolds arrive as a precomputed mapping so that the
 splitting logic stays pure, fast and testable without a chemistry toolkit installed.
@@ -41,12 +41,17 @@ def random_split(keys: Sequence[str], test_frac: float = 0.2, seed: int = 0) -> 
 def scaffold_split(
     scaffolds: Mapping[str, str], test_frac: float = 0.2, seed: int = 0
 ) -> Split:
-    """Assign whole scaffold groups to one side, largest group first.
+    """Assign whole scaffold groups to one side, largest group first, into test.
 
-    Largest-first is deterministic and is what most published scaffold splits do, but it
-    biases the test set towards singleton scaffolds. ``seed`` only breaks ties between
-    equally sized groups, so the split is reproducible without being an accident of
-    dictionary ordering.
+    Groups are sorted by size and the test set is filled from the top, so it holds the
+    largest scaffold series and every singleton scaffold ends up in training.
+    This is the reverse of the common convention (DeepChem's scaffold splitter fills
+    training first, so its test set collects small groups and singletons), and it makes
+    the test set a few large congeneric series rather than a spread of chemotypes.
+    Resampling test compounds therefore understates the uncertainty of a score on it.
+
+    ``seed`` only breaks ties between equally sized groups, so the split is reproducible
+    without being an accident of dictionary ordering.
     """
     _check_frac(test_frac)
     groups: dict[str, list[str]] = defaultdict(list)
@@ -75,20 +80,19 @@ def activity_cliff_split(
 ) -> Split:
     """Enrich the test set for activity cliffs.
 
-    ``cliff_members`` is computed upstream, where a fingerprint backend exists -- see
-    :func:`chembench.curate.find_activity_cliffs`. Keeping this function free of RDKit is
+    ``cliff_members`` is computed upstream, where a fingerprint backend exists (see
+    :func:`chembench.curate.find_activity_cliffs`). Keeping this function free of RDKit is
     what lets the splitting logic be tested without a chemistry toolkit.
 
-    The test set is filled with cliff compounds first, then topped up at random. The
-    deliberate consequence is that a cliff pair usually straddles the split: one member is
-    seen in training and its near-identical, very differently potent partner is not. That
-    is the case a fingerprint-similarity model gets wrong by construction, and it is the
-    regime where descriptor baselines have repeatedly matched deep models.
+    The test set is filled with cliff compounds first, then topped up at random. When the
+    cliff compounds are fewer than the test set, which holds for every target in the panel
+    here, all of them go to test. Both members of every cliff pair are then in test and no
+    pair is split across train and test, and the enrichment equals its ceiling of
+    ``1 / test_frac``. The split therefore measures performance on a test set that holds
+    every cliff compound, not the case where one member of a pair is seen in training.
 
-    A test set of *only* cliff compounds would be a different and less useful experiment --
-    it would measure performance on a subpopulation rather than the cost of cliffs to an
-    ordinary evaluation -- so the remainder is filled randomly rather than the fraction
-    being raised.
+    The remainder is filled randomly rather than the test set being made of cliffs only,
+    so the score stays an ordinary evaluation with the cliffs concentrated in it.
     """
     _check_frac(test_frac)
     rng = random.Random(seed)
